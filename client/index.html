@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css"
+    />
+    <title>Live Chat</title>
+  </head>
+  <body class="dark-mode">
+    <header>
+      <button id="theme-toggle" aria-label="Toggle Dark/Light Mode">
+        <i class="fas fa-sun" id="icon-sun"></i>
+        <i class="fas fa-moon" id="icon-moon" style="display: none"></i>
+      </button>
+    </header>
+    <section id="chat">
+      <ul id="messages"></ul>
+      <form id="form">
+        <input
+          type="text"
+          name="message"
+          id="input"
+          placeholder="Type a message"
+          autocomplete="off"
+        />
+        <button type="submit">Send</button>
+      </form>
+    </section>
+
+    <script type="module">
+      import { io } from "https://cdn.socket.io/4.3.2/socket.io.esm.min.js";
+
+      const getUsername = async () => {
+        const username = localStorage.getItem("username");
+        if (username) {
+          console.log(`User existed ${username}`);
+          return username;
+        }
+
+        const res = await fetch(
+          "https://random-data-api.com/api/users/random_user"
+        );
+        const { username: randomUsername } = await res.json();
+
+        localStorage.setItem("username", randomUsername);
+        return randomUsername;
+      };
+
+      const socket = io({
+        auth: {
+          username: await getUsername(),
+          serverOffset: 0,
+        },
+      });
+
+      const form = document.getElementById("form");
+      const input = document.getElementById("input");
+      const messages = document.getElementById("messages");
+
+      function getInitials(username) {
+        const [firstName, lastName] = username.split(".");
+        const firstInitial = firstName ? firstName.charAt(0).toUpperCase() : "";
+        const secondInitial = lastName ? lastName.charAt(0).toUpperCase() : "";
+        return firstInitial + secondInitial;
+      }
+
+      socket.on("chat message", (msg, id, username, timestamp) => {
+        const currentUser = socket.auth.username;
+        const initials = getInitials(username);
+        const formattedDateTime = formatTimestamp(timestamp);
+
+        const isOtherUser = username !== currentUser;
+        const liClass = isOtherUser ? "other-user" : "user-message";
+
+        const item = `
+            <li class="${liClass}">
+                <div class="message-container">
+                    <div class="initials">${initials}</div>
+                    <div class="message-content">
+                        <p>${msg}</p>
+                        <span>${formattedDateTime}</span>
+                    </div>
+                </div>
+            </li>`;
+
+        messages.insertAdjacentHTML("beforeend", item);
+        messages.scrollTop = messages.scrollHeight;
+      });
+
+      function formatTimestamp(timestamp) {
+        const messageDate = new Date(timestamp);
+        const today = new Date();
+        const optionsDate = {
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
+        };
+        const optionsTime = { hour: "2-digit", minute: "2-digit" };
+
+        const isToday =
+          messageDate.toLocaleDateString() === today.toLocaleDateString();
+        return isToday
+          ? messageDate.toLocaleTimeString(undefined, optionsTime)
+          : `${messageDate.toLocaleDateString(
+              undefined,
+              optionsDate
+            )} ${messageDate.toLocaleTimeString(undefined, optionsTime)}`;
+      }
+
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+
+        if (input.value) {
+          socket.emit("chat message", input.value);
+          input.value = "";
+        }
+      });
+
+      const themeToggle = document.getElementById("theme-toggle");
+      const iconSun = document.getElementById("icon-sun");
+      const iconMoon = document.getElementById("icon-moon");
+
+      themeToggle.addEventListener("click", () => {
+        document.body.classList.toggle("dark-mode");
+
+        iconSun.style.display = document.body.classList.contains("dark-mode")
+          ? "none"
+          : "block";
+        iconMoon.style.display = document.body.classList.contains("dark-mode")
+          ? "block"
+          : "none";
+
+        if (document.body.classList.contains("dark-mode")) {
+          localStorage.setItem("theme", "dark");
+        } else {
+          localStorage.setItem("theme", "light");
+        }
+      });
+
+      // Al cargar la página, verifica el tema guardado
+      window.addEventListener("load", () => {
+        console.log(localStorage.getItem("theme"));
+        console.log("Tema cambiado"); // Para depuración
+        document.body.classList.toggle("dark-mode");
+        const savedTheme = localStorage.getItem("theme");
+        if (savedTheme === "dark") {
+          document.body.classList.add("dark-mode");
+          iconSun.style.display = "none";
+          iconMoon.style.display = "block";
+        }
+      });
+    </script>
+  </body>
+
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    :root {
+      --background-color: #ece5dd;
+      --text-color: #000;
+      --chat-background: #e5ddd5;
+      --user-message-bg: #dcf8c6;
+      --other-user-bg: #ffffff;
+      --text-color: #000;
+      --input-bg: #f0f0f0;
+      --button-bg: #34b7f1;
+      --button-hover-bg: #4fc3f7;
+      --span-text-color: #888;
+    }
+
+    body.dark-mode {
+      --background-color: #121212;
+      --chat-background: #1e1e1e;
+      --user-message-bg: #007a33;
+      --other-user-bg: #2c2c2c;
+      --text-color: #ffffff;
+      --input-bg: #333333;
+      --button-bg: #00aaff;
+      --button-hover-bg: #0099cc;
+      --span-text-color: #bbb;
+    }
+
+    body.dark-mode #theme-toggle i {
+      color: white;
+    }
+
+    body.dark-mode .initials {
+      background-color: #2c2c2c;
+      color: #fff;
+    }
+
+    body.dark-mode #messages li.user-message .initials {
+      background-color: #007a33;
+      color: #fff;
+    }
+
+    body.dark-mode #messages li.other-user .initials {
+      background-color: #dcf8c6;
+      color: #000;
+    }
+
+    body {
+      background-color: var(--background-color);
+      color: var(--text-color);
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    header {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background-color: var(--header-bg);
+      color: var(--header-text-color);
+      padding: 15px 20px;
+      display: flex;
+      justify-content: flex-end;
+      align-items: center;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      z-index: 1000;
+    }
+
+    #theme-toggle {
+      background: none;
+      border: none;
+      cursor: pointer;
+    }
+
+    #theme-toggle i {
+      font-size: 24px;
+      color: var(--icon-color);
+    }
+
+    #icon-sun {
+      display: block;
+    }
+
+    #icon-moon {
+      display: none;
+    }
+
+    #chat {
+      width: 100%;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background-color: var(--chat-background);
+      border-radius: 10px;
+      box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.2);
+      overflow: hidden;
+    }
+
+    #messages {
+      flex: 1;
+      list-style: none;
+      padding: 10px 15px;
+      margin: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+    }
+
+    #messages li {
+      margin: 8px 0;
+      display: flex;
+      align-items: flex-start;
+      justify-content: flex-start;
+    }
+
+    #messages li.other-user {
+      align-self: self-end;
+    }
+
+    #messages li.other-user .message-container {
+      flex-direction: row-reverse;
+    }
+
+    #messages li.other-user .message-container .initials {
+      margin-right: 0;
+      margin-left: 10px;
+    }
+
+    .message-container {
+      display: flex;
+      align-items: flex-start;
+      flex: 1;
+    }
+
+    .initials {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: var(--button-bg);
+      color: white;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      font-weight: bold;
+      margin-right: 10px;
+    }
+
+    #messages li.user-message .initials {
+      background-color: #007a33;
+      color: #fff;
+    }
+
+    #messages li.other-user .initials {
+      background-color: #dcf8c6;
+      color: #000;
+    }
+
+    .message-content {
+      max-width: 75%;
+      padding: 10px 15px;
+      border-radius: 10px;
+      font-size: 14px;
+      line-height: 1.4;
+      word-wrap: break-word;
+    }
+
+    #messages li.user-message .message-content {
+      background-color: var(--user-message-bg);
+      color: var(--text-color);
+      border-top-left-radius: 0;
+      text-align: right;
+    }
+
+    #messages li.other-user .message-content {
+      background-color: var(--other-user-bg);
+      color: var(--text-color);
+      border-top-right-radius: 0;
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+      text-align: left;
+    }
+
+    #messages li span {
+      font-size: 11px;
+      color: var(--span-text-color);
+      margin-top: 5px;
+      display: block;
+    }
+
+    #form {
+      display: flex;
+      padding: 10px;
+      background-color: var(--input-bg);
+      border-top: 1px solid #ddd;
+    }
+
+    #input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 20px;
+      outline: none;
+      font-size: 14px;
+    }
+
+    #form button {
+      padding: 0 15px;
+      margin-left: 10px;
+      background-color: var(--button-bg);
+      border: none;
+      border-radius: 9999px;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      outline: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 50px;
+      width: 100px;
+    }
+
+    #form button:hover {
+      background-color: var(--button-hover-bg);
+    }
+
+    #messages::-webkit-scrollbar {
+      display: none;
+    }
+
+    @media (max-width: 768px) {
+      #chat {
+        max-width: 90%;
+        height: 75vh;
+      }
+
+      #messages li {
+        font-size: 13px;
+        padding: 8px 12px;
+      }
+
+      #form {
+        padding: 8px;
+      }
+
+      #input {
+        font-size: 13px;
+        padding: 8px;
+      }
+
+      #form button {
+        height: 35px;
+        width: 35px;
+        font-size: 14px;
+      }
+    }
+
+    @media (max-width: 480px) {
+      #chat {
+        max-width: 100%;
+        height: 70vh;
+        border-radius: 0;
+      }
+
+      #messages li {
+        font-size: 12px;
+        padding: 7px 10px;
+      }
+
+      #form {
+        padding: 6px;
+      }
+
+      #input {
+        font-size: 12px;
+        padding: 7px;
+      }
+
+      #form button {
+        height: 30px;
+        width: 30px;
+        font-size: 12px;
+      }
+    }
+  </style>
+</html>
